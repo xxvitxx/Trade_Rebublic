@@ -42,7 +42,7 @@ st.sidebar.header("Eingabedaten")
 
 # Eingabefelder
 sparsumme = st.sidebar.number_input(
-    "Sparsumme (€)", min_value=0.0, value=6000.0, step=100.0
+    "Sparsumme (€)", min_value=0.0, value=10000.0, step=1000.0
 )
 laufzeit_in_monaten = st.sidebar.number_input(
     "Laufzeit (Monate)", min_value=1, value=12, step=1
@@ -97,9 +97,6 @@ st.header("Ergebnisse")
 # Gesamtzinsen
 gesamtzinsen = df_zinsen["Gesamtzinsen"].iloc[-1]
 st.subheader(f"Gesamtzinsen über {laufzeit_in_monaten} Monate: {gesamtzinsen:.2f} €")
-
-# #Taglicher Zins
-# tageszins =tageszinssatz
 
 # Anzahl der Tage
 anzahl_tage = len(df_zinsen)
