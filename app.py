@@ -5,7 +5,9 @@ import plotly.express as px
 from dateutil.relativedelta import relativedelta
 
 
-def berechne_zinsen_exakt(laufzeit_in_monaten, sparsumme, jahreszins, startdatum=None):
+def berechne_zinsen_mit_monatlicher_gutschrift(
+    laufzeit_in_monaten, sparsumme, jahreszins, startdatum=None
+):
     if startdatum is None:
         startdatum = datetime.date.today()
     else:
@@ -16,16 +18,30 @@ def berechne_zinsen_exakt(laufzeit_in_monaten, sparsumme, jahreszins, startdatum
     daten = []
     aktuelles_datum = startdatum
     enddatum = startdatum + relativedelta(months=laufzeit_in_monaten)
+    aktueller_kontostand = sparsumme
     gesamt_zinsen = 0.0
+    monatliche_zinsen = 0.0
+    letzter_monat = aktuelles_datum.month
 
     while aktuelles_datum < enddatum:
-        tageszins = sparsumme * tageszinssatz
+        tageszins = aktueller_kontostand * tageszinssatz
         gesamt_zinsen += tageszins
+        monatliche_zinsen += tageszins
+
+        # Überprüfung, ob ein Monatsende erreicht wurde
+        if (
+            aktuelles_datum + datetime.timedelta(days=1)
+        ).month != aktuelles_datum.month:
+            # Zinsgutschrift am Monatsende
+            aktueller_kontostand += monatliche_zinsen
+            monatliche_zinsen = 0.0  # Monatliche Zinsen zurücksetzen
+
         daten.append(
             {
                 "Datum": aktuelles_datum,
                 "Tageszins": tageszins,
                 "Gesamtzinsen": gesamt_zinsen,
+                "Kontostand": aktueller_kontostand,
             }
         )
         aktuelles_datum += datetime.timedelta(days=1)
@@ -36,19 +52,19 @@ def berechne_zinsen_exakt(laufzeit_in_monaten, sparsumme, jahreszins, startdatum
 
 
 # Streamlit-App
-st.title("Zinsberechnung mit Trade Republic")
+st.title("Zinsberechnung mit monatlicher Zinsgutschrift")
 
 st.sidebar.header("Eingabedaten")
 
 # Eingabefelder
 sparsumme = st.sidebar.number_input(
-    "Sparsumme (€)", min_value=0.0, value=6000.0, step=100.0
+    "Sparsumme (€)", min_value=0.0, value=10000.0, step=1000.0
 )
 laufzeit_in_monaten = st.sidebar.number_input(
     "Laufzeit (Monate)", min_value=1, value=12, step=1
 )
 jahreszins_prozent = st.sidebar.number_input(
-    "Jahreszinssatz (% p.a.)", min_value=0.0, value=3.5, step=0.1
+    "Jahreszinssatz (% p.a.)", min_value=0.0, value=3.75, step=0.01
 )
 startdatum = st.sidebar.date_input("Startdatum", datetime.date.today())
 
@@ -56,7 +72,7 @@ startdatum = st.sidebar.date_input("Startdatum", datetime.date.today())
 jahreszins = jahreszins_prozent / 100
 
 # Berechnung durchführen
-df_zinsen = berechne_zinsen_exakt(
+df_zinsen = berechne_zinsen_mit_monatlicher_gutschrift(
     laufzeit_in_monaten, sparsumme, jahreszins, startdatum.strftime("%Y-%m-%d")
 )
 
@@ -64,7 +80,9 @@ df_zinsen = berechne_zinsen_exakt(
 st.header("Beschreibung der Berechnung")
 st.markdown(
     """
-Die Zinsen werden nach dem Prinzip der täglichen Zinsberechnung ermittelt:
+Die Zinsen werden nach dem Prinzip der täglichen Zinsberechnung mit monatlicher Zinsgutschrift ermittelt:
+
+- **Tageszinssatz**: Der jährliche Zinssatz wird durch 365 geteilt, um den täglichen Zinssatz zu erhalten.
 """
 )
 st.latex(
@@ -80,12 +98,12 @@ st.markdown(
 )
 st.latex(
     r"""
-\text{Tageszins} = \text{Sparsumme} \times \text{Tageszinssatz}
+\text{Tageszins} = \text{Aktueller Kontostand} \times \text{Tageszinssatz}
 """
 )
 st.markdown(
     """
-- **Kumulierte Zinsen**: Die täglichen Zinsen werden aufsummiert, um die kumulierten Gesamtzinsen zu erhalten.
+- **Monatliche Zinsgutschrift**: Am Ende jedes Monats werden die gesammelten Zinsen dem Kontostand hinzugefügt.
 
 - **Laufzeit**: Die tatsächliche Anzahl der Tage wird basierend auf dem Startdatum und der Laufzeit in Monaten berechnet.
 """
@@ -102,13 +120,13 @@ st.subheader(f"Gesamtzinsen über {laufzeit_in_monaten} Monate: {gesamtzinsen:.2
 anzahl_tage = len(df_zinsen)
 st.write(f"Anzahl der Tage: {anzahl_tage}")
 
-# Diagramm erstellen - Gesamtzinsentwicklung
-st.subheader("Gesamtzinsentwicklung über die Zeit")
+# Diagramm erstellen - Kontostandentwicklung
+st.subheader("Kontostandentwicklung über die Zeit")
 fig = px.line(
     df_zinsen,
     x="Datum",
-    y="Gesamtzinsen",
-    title="Entwicklung der Gesamtzinsen über die Zeit",
+    y="Kontostand",
+    title="Entwicklung des Kontostands über die Zeit",
 )
 st.plotly_chart(fig)
 
@@ -130,13 +148,10 @@ if anzeige_option == "Täglich":
     fig2 = px.bar(df_zinsen, x="Datum", y="Tageszins", title="Tägliche Zinsen")
     st.plotly_chart(fig2)
 
-    # Gesamtzinsentwicklung täglich
-    st.subheader("Gesamtzinsentwicklung (Täglich)")
+    # Kontostandentwicklung täglich
+    st.subheader("Kontostandentwicklung (Täglich)")
     fig4 = px.line(
-        df_zinsen,
-        x="Datum",
-        y="Gesamtzinsen",
-        title="Kumulative Gesamtzinsen über die Zeit (Täglich)",
+        df_zinsen, x="Datum", y="Kontostand", title="Kontostand über die Zeit (Täglich)"
     )
     st.plotly_chart(fig4)
 
@@ -146,7 +161,7 @@ elif anzeige_option == "Monatlich":
     df_zinsen["Monat"] = df_zinsen["Datum"].dt.to_period("M")
     df_monatlich = (
         df_zinsen.groupby("Monat")
-        .agg({"Tageszins": "sum", "Gesamtzinsen": "last"})
+        .agg({"Tageszins": "sum", "Gesamtzinsen": "last", "Kontostand": "last"})
         .reset_index()
     )
     # Konvertiere 'Monat' zurück zu Datum für bessere Lesbarkeit
@@ -158,12 +173,9 @@ elif anzeige_option == "Monatlich":
     fig3 = px.bar(df_monatlich, x="Monat", y="Tageszins", title="Monatliche Zinsen")
     st.plotly_chart(fig3)
 
-    # Gesamtzinsentwicklung monatlich
-    st.subheader("Gesamtzinsentwicklung (Monatlich)")
+    # Kontostandentwicklung monatlich
+    st.subheader("Kontostandentwicklung (Monatlich)")
     fig5 = px.line(
-        df_monatlich,
-        x="Monat",
-        y="Gesamtzinsen",
-        title="Kumulative Gesamtzinsen über die Monate",
+        df_monatlich, x="Monat", y="Kontostand", title="Kontostand über die Monate"
     )
     st.plotly_chart(fig5)
